@@ -21,7 +21,7 @@ var server			= require("http").createServer(app);
 var io				= require("socket.io")(server);
 var session			= require("express-session")({
 	secret: "my-secret",
-	resave: true,
+	resave: false,
 	saveUninitialized: true
 });
 var sharedsession	= require("express-socket.io-session");
@@ -37,15 +37,15 @@ io.use(sharedsession(session, {
   autoSave: true
 }));
 //Debugging express
-app.use("*", function(req, res, next) {
-  console.log("Express `req.session` data is %j.", req.session);
-  next();
-});
-// Debugging io
-io.use(function(socket, next) {
-  console.log("socket.handshake session data is %j.", socket.handshake.session);
-  next();
-});
+//app.use("*", function(req, res, next) {
+//  console.log("Express `req.session` data is %j.", req.session);
+//  next();
+//});
+//// Debugging io
+//io.use(function(socket, next) {
+//  console.log("socket.handshake session data is %j.", socket.handshake.session);
+//  next();
+//});
 
 app.use(require("express").static(__dirname));
 
@@ -59,8 +59,7 @@ app.use("/login", function(req, res, next) {
 	req.session.user = {
 		username: "hogehoge.express"
 	};
-	//TODO:この下のsave()はなに？
-	//req.session.save();
+	req.session.save();
 	res.redirect("/");
 });
 
@@ -71,9 +70,11 @@ app.use("/login", function(req, res, next) {
 app.use("/logout", function(req, res, next) {
 	console.log("Requested /logout: " + yellow + JSON.stringify(req.session) + reset)
 	//セッションからuserを削除
-	delete req.session.user;
-	//TODO:この下のsave()はなに？
+	//こっちは要素のみ削除（セッションは破棄されないのでsocket通信は可能）
+	//delete req.session.user;
 	//req.session.save();
+	//こっちはセッションを破棄（もうセッションがないのでsocket通信をするにはコネクションを張り直す必要あり）
+	req.session.destroy();
 	res.redirect("/");
 });
 
@@ -98,8 +99,7 @@ io.on("connection", function(socket) {
 			username: "hogehoge.socketio"
 		};
 		//console.log("socket.handshake session data is %j.", JSON.stringify(socket.handshake.session));
-		//TODO:この下のsave()はなに？
-		// socket.handshake.session.save();
+		socket.handshake.session.save();
 		//emit logged_in for debugging purposes of this example
 		socket.emit("logged_in", socket.handshake.session);
 	});
@@ -112,9 +112,11 @@ io.on("connection", function(socket) {
 		console.log("Received login message: " + yellow + JSON.stringify(socket.handshake.session) + reset)
 		socket.handshake.session.user = {};
 		//セッションからloggedを削除
-		delete socket.handshake.session.logged;
-		//TODO:この下のsave()はなに？
-		// socket.handshake.session.save();
+		//こっちは要素のみ削除（セッションは破棄されないのでsocket通信は可能）
+		//delete socket.handshake.session.logged;
+		//socket.handshake.session.save();
+		//こっちはセッションを破棄（もうセッションがないのでsocket通信をするにはコネクションを張り直す必要あり）
+		socket.handshake.session.destroy();
 		//emit logged_out for debugging purposes of this example
 		//console.log("socket.handshake session data is %j.", socket.handshake.session);
 		socket.emit("logged_out", socket.handshake.session);
